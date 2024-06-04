@@ -1,16 +1,73 @@
-use std::mem::size_of;
+use std::ops::Range;
 
-use crate::parse::{Error::UnexpectedData, MinimumBoundingRectangle, Parser, Result};
+use crate::parse::Error;
+
+#[derive(Debug)]
+pub struct MinimumBoundingRectangle {
+    pub x: Range<f64>,
+    pub y: Range<f64>,
+}
+
+pub type Integer = i32;
+pub type Double = f64;
+
+#[derive(Debug)]
+pub struct ShpLength(pub i32);
+
+impl ShpLength {
+    /// Convert a Shapefile length to number of bytes.
+    /// Use when lengths are expressed in # of 16-bit words.
+    pub fn num_bytes(&self) -> usize {
+        self.0 as usize * 2
+    }
+}
+
+#[derive(Debug)]
+pub struct ShpFile {
+    pub header: ShpHeader,
+    pub records: Vec<ShpRecord>,
+}
+
+// See https://en.wikipedia.org/wiki/Shapefile#Shapefile_headers
+#[derive(Debug)]
+pub struct ShpHeader {
+    pub file_code: i32,
+
+    /// In 16-bit words
+    pub file_length: ShpLength,
+
+    pub version: i32,
+    pub shape_type: ShapeType,
+    pub mbr: MinimumBoundingRectangle,
+    pub z_range: Range<f64>,
+    pub m_range: Range<f64>,
+}
+
+impl ShpHeader {
+    pub const FILE_CODE: i32 = 0x0000270a;
+}
+
+#[derive(Debug)]
+pub struct ShpRecordHeader {
+    /// Starting at 1
+    pub record_number: i32,
+
+    /// In 16-bit words.
+    /// This is not including the record header.
+    pub content_length: ShpLength,
+}
+
+#[derive(Debug)]
+pub struct ShpRecord {
+    pub shape: Shape,
+}
 
 #[derive(Debug)]
 pub enum ShapeType {
     Null = 0,
     Point = 1,
     PolyLine = 3,
-
-    // wiki: MBR, Number of parts, Number of points, Parts, Points
     Polygon = 5,
-
     MultiPoint = 8,
     PointZ = 11,
     PolylineZ = 13,
@@ -21,6 +78,34 @@ pub enum ShapeType {
     PolygonM = 25,
     MultiPointM = 28,
     MultiPatch = 31,
+}
+
+impl TryFrom<i32> for ShapeType {
+    type Error = Error;
+
+    fn try_from(value: i32) -> crate::parse::Result<Self> {
+        Ok(match value {
+            v if v == ShapeType::Null as i32 => ShapeType::Null,
+            v if v == ShapeType::Point as i32 => ShapeType::Point,
+            v if v == ShapeType::PolyLine as i32 => ShapeType::PolyLine,
+            v if v == ShapeType::Polygon as i32 => ShapeType::Polygon,
+            v if v == ShapeType::MultiPoint as i32 => ShapeType::MultiPoint,
+            v if v == ShapeType::PointZ as i32 => ShapeType::PointZ,
+            v if v == ShapeType::PolylineZ as i32 => ShapeType::PolylineZ,
+            v if v == ShapeType::PolygonZ as i32 => ShapeType::PolygonZ,
+            v if v == ShapeType::MultiPointZ as i32 => ShapeType::MultiPointZ,
+            v if v == ShapeType::PointM as i32 => ShapeType::PointM,
+            v if v == ShapeType::PolylineM as i32 => ShapeType::PolylineM,
+            v if v == ShapeType::PolygonM as i32 => ShapeType::PolygonM,
+            v if v == ShapeType::MultiPointM as i32 => ShapeType::MultiPointM,
+            v if v == ShapeType::MultiPatch as i32 => ShapeType::MultiPatch,
+            _ => {
+                return Err(Error::UnexpectedData(format!(
+                    "The number `{value}` does not correspond to a shape type"
+                )))
+            }
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -45,78 +130,6 @@ pub enum Shape {
 pub struct Point {
     pub x: f64,
     pub y: f64,
-}
-
-impl Shape {
-    pub fn parse(type_: &ShapeType, data: &[u8]) -> Result<Self> {
-        match type_ {
-            ShapeType::Null => Self::parse_null(data),
-            ShapeType::Point => unimplemented!(),
-            ShapeType::PolyLine => unimplemented!(),
-            ShapeType::Polygon => Self::parse_polygon(data),
-            ShapeType::MultiPoint => unimplemented!(),
-            ShapeType::PointZ => unimplemented!(),
-            ShapeType::PolylineZ => unimplemented!(),
-            ShapeType::PolygonZ => unimplemented!(),
-            ShapeType::MultiPointZ => unimplemented!(),
-            ShapeType::PointM => unimplemented!(),
-            ShapeType::PolylineM => unimplemented!(),
-            ShapeType::PolygonM => unimplemented!(),
-            ShapeType::MultiPointM => unimplemented!(),
-            ShapeType::MultiPatch => unimplemented!(),
-        }
-    }
-
-    pub fn parse_null(data: &[u8]) -> Result<Self> {
-        if data.len() != 0 {
-            Err(UnexpectedData(format!(
-                "Expected empty data buffer for the Null type"
-            )))
-        } else {
-            Ok(Self::Null)
-        }
-    }
-
-    pub fn parse_polygon(data: &[u8]) -> Result<Self> {
-        let mut parser = Parser::with_reader(data);
-
-        let mbr = parser.consume_and_parse_mbr()?;
-
-        let num_parts = parser.parse_integer()?;
-        let num_points = parser.parse_integer()?;
-
-        dbg!(
-            "Polygon: ",
-            &data.len(),
-            &mbr,
-            &num_parts,
-            &num_points,
-            parser.num_bytes_read()
-        );
-
-        let mut parts_array = Vec::with_capacity(4 * num_parts as usize);
-
-        for _ in 0..num_parts {
-            let part_idx = parser.parse_integer()?;
-            dbg!(&part_idx);
-            parts_array.push(part_idx);
-        }
-
-        let mut points_array = Vec::with_capacity(size_of::<Point>() * num_points as usize);
-        for _ in 0..num_points {
-            let point = parser.parse_point()?;
-            dbg!(&point);
-            points_array.push(point);
-        }
-
-        debug_assert_eq!(data.len(), parser.num_bytes_read());
-
-        // 164 bytes total, 40 consumed -> 124 left
-        // NumParts[1] -> should read an i32, so 120 left
-        // Point[8] -> should read 8 (2xDouble) -> 8 *16
-
-        unimplemented!()
-    }
 }
 
 #[derive(Debug)]

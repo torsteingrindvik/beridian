@@ -1,14 +1,16 @@
 use std::{
     fs::File,
-    io::{self, BufReader, Read},
+    io::{self, BufReader},
     mem::size_of,
-    ops::Range,
     path::Path,
 };
 
 use thiserror::Error;
 
-use crate::shape::{self, Point, PolyLine, Polygon, Shape, ShapeType};
+use crate::shape::{
+    self, Double, Integer, MinimumBoundingRectangle, Point, PolyLine, Polygon, Shape, ShapeType,
+    ShpFile, ShpHeader, ShpLength, ShpRecord, ShpRecordHeader,
+};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -20,85 +22,6 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-
-impl TryFrom<i32> for ShapeType {
-    type Error = Error;
-
-    fn try_from(value: i32) -> Result<Self> {
-        Ok(match value {
-            v if v == ShapeType::Null as i32 => ShapeType::Null,
-            v if v == ShapeType::Point as i32 => ShapeType::Point,
-            v if v == ShapeType::PolyLine as i32 => ShapeType::PolyLine,
-            v if v == ShapeType::Polygon as i32 => ShapeType::Polygon,
-            v if v == ShapeType::MultiPoint as i32 => ShapeType::MultiPoint,
-            v if v == ShapeType::PointZ as i32 => ShapeType::PointZ,
-            v if v == ShapeType::PolylineZ as i32 => ShapeType::PolylineZ,
-            v if v == ShapeType::PolygonZ as i32 => ShapeType::PolygonZ,
-            v if v == ShapeType::MultiPointZ as i32 => ShapeType::MultiPointZ,
-            v if v == ShapeType::PointM as i32 => ShapeType::PointM,
-            v if v == ShapeType::PolylineM as i32 => ShapeType::PolylineM,
-            v if v == ShapeType::PolygonM as i32 => ShapeType::PolygonM,
-            v if v == ShapeType::MultiPointM as i32 => ShapeType::MultiPointM,
-            v if v == ShapeType::MultiPatch as i32 => ShapeType::MultiPatch,
-            _ => {
-                return Err(Error::UnexpectedData(format!(
-                    "The number `{value}` does not correspond to a shape type"
-                )))
-            }
-        })
-    }
-}
-
-#[derive(Debug)]
-pub struct MinimumBoundingRectangle {
-    pub x: Range<f64>,
-    pub y: Range<f64>,
-}
-
-#[derive(Debug)]
-pub struct ShpLength(i32);
-
-impl ShpLength {
-    /// Convert a Shapefile length to number of bytes.
-    /// Use when lengths are expressed in # of 16-bit words.
-    pub fn num_bytes(&self) -> usize {
-        self.0 as usize * 2
-    }
-}
-
-// See https://en.wikipedia.org/wiki/Shapefile#Shapefile_headers
-#[derive(Debug)]
-pub struct ShpHeader {
-    pub file_code: i32,
-
-    /// In 16-bit words
-    pub file_length: ShpLength,
-
-    pub version: i32,
-    pub shape_type: ShapeType,
-    pub mbr: MinimumBoundingRectangle,
-    pub z_range: Range<f64>,
-    pub m_range: Range<f64>,
-}
-
-impl ShpHeader {
-    const FILE_CODE: i32 = 0x0000270a;
-}
-
-#[derive(Debug)]
-pub struct ShpRecordHeader {
-    /// Starting at 1
-    pub record_number: i32,
-
-    /// In 16-bit words.
-    /// This is not including the record header.
-    content_length: ShpLength,
-}
-
-#[derive(Debug)]
-pub struct ShpRecord {
-    pub shape: Shape,
-}
 
 pub struct Parser<R> {
     bytes_read: usize,
@@ -115,6 +38,24 @@ impl Parser<BufReader<File>> {
     pub fn new<P: AsRef<Path>>(shp_path: P) -> Result<Self> {
         let f = std::fs::File::open(shp_path.as_ref())?;
         Ok(Self::with_reader(BufReader::new(f)))
+    }
+
+    pub fn parse<P: AsRef<Path>>(shp_path: P) -> Result<ShpFile> {
+        let mut parser = Self::new(shp_path)?;
+
+        let header = parser.parse_header()?;
+
+        let mut records = vec![];
+
+        let goal = header.file_length.num_bytes();
+
+        while parser.num_bytes_read() < goal {
+            records.push(parser.parse_record()?);
+        }
+
+        assert_eq!(parser.num_bytes_read(), goal);
+
+        Ok(ShpFile { header, records })
     }
 }
 
@@ -150,22 +91,11 @@ where
         Ok(buf)
     }
 
-    // Data should be the size of four floats.
-    fn parse_mbr(&self, data: &[u8]) -> Result<MinimumBoundingRectangle> {
-        let mut buf = [0u8; size_of::<f64>()];
-        let mut reader = BufReader::new(data);
-
-        reader.read_exact(&mut buf)?;
-        let min_x = f64::from_le_bytes(buf);
-
-        reader.read_exact(&mut buf)?;
-        let min_y = f64::from_le_bytes(buf);
-
-        reader.read_exact(&mut buf)?;
-        let max_x = f64::from_le_bytes(buf);
-
-        reader.read_exact(&mut buf)?;
-        let max_y = f64::from_le_bytes(buf);
+    fn parse_mbr(&mut self) -> Result<MinimumBoundingRectangle> {
+        let min_x = self.parse_double()?;
+        let min_y = self.parse_double()?;
+        let max_x = self.parse_double()?;
+        let max_y = self.parse_double()?;
 
         Ok(MinimumBoundingRectangle {
             x: min_x..max_x,
@@ -173,24 +103,13 @@ where
         })
     }
 
-    pub fn consume_and_parse_mbr(&mut self) -> Result<MinimumBoundingRectangle> {
-        let mut buf = Vec::with_capacity(4 * size_of::<f64>());
-
-        buf.extend_from_slice(&self.consume_8()?);
-        buf.extend_from_slice(&self.consume_8()?);
-        buf.extend_from_slice(&self.consume_8()?);
-        buf.extend_from_slice(&self.consume_8()?);
-
-        self.parse_mbr(&buf)
-    }
-
     /// From "ESRI Shapefile Technical Description" doubles
     /// are 8 bytes, little endian.
-    pub fn parse_double(&mut self) -> Result<f64> {
+    fn parse_double(&mut self) -> Result<Double> {
         Ok(f64::from_le_bytes(self.consume_8()?))
     }
 
-    pub fn parse_point(&mut self) -> Result<shape::Point> {
+    fn parse_point(&mut self) -> Result<shape::Point> {
         Ok(Point {
             x: self.parse_double()?,
             y: self.parse_double()?,
@@ -211,15 +130,15 @@ where
 
     /// From "ESRI Shapefile Technical Description" integers
     /// are four byte little endian numbers.
-    pub fn parse_integer(&mut self) -> Result<i32> {
+    fn parse_integer(&mut self) -> Result<Integer> {
         Ok(i32::from_le_bytes(self.consume_4()?))
     }
 
-    pub fn parse_length(&mut self) -> Result<ShpLength> {
+    fn parse_length(&mut self) -> Result<ShpLength> {
         self.parse_i32_be().map(ShpLength)
     }
 
-    pub fn parse_record_number(&mut self) -> Result<i32> {
+    fn parse_record_number(&mut self) -> Result<i32> {
         self.parse_i32_be()
     }
 
@@ -234,13 +153,13 @@ where
             )));
         }
 
-        // Unused; 5 u32
-        let mut unused = [0; 5 * size_of::<i32>()];
-        self.read_exact(&mut unused)?;
+        // Unused; 5 integers
+        self.read_exact(&mut [0; 5 * size_of::<Integer>()])?;
+
         let file_length = self.parse_length()?;
         let version = self.parse_integer()?;
         let shape_type = self.parse_shape_type()?;
-        let mbr = self.consume_and_parse_mbr()?;
+        let mbr = self.parse_mbr()?;
         let min_z = self.parse_double()?;
         let max_z = self.parse_double()?;
         let min_m = self.parse_double()?;
@@ -259,7 +178,7 @@ where
         Ok(shp_header)
     }
 
-    pub fn parse_record_header(&mut self) -> Result<ShpRecordHeader> {
+    fn parse_record_header(&mut self) -> Result<ShpRecordHeader> {
         Ok(ShpRecordHeader {
             record_number: self.parse_record_number()?,
             content_length: self.parse_length()?,
@@ -271,7 +190,7 @@ where
     }
 
     fn parse_polygon(&mut self) -> Result<Shape> {
-        let mbr = self.consume_and_parse_mbr()?;
+        let mbr = self.parse_mbr()?;
 
         let num_parts = self.parse_integer()?;
         let num_points = self.parse_integer()?;
@@ -293,7 +212,7 @@ where
     }
 
     fn parse_polyline(&mut self) -> Result<Shape> {
-        let mbr = self.consume_and_parse_mbr()?;
+        let mbr = self.parse_mbr()?;
 
         let num_parts = self.parse_integer()?;
         let num_points = self.parse_integer()?;

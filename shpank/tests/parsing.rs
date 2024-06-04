@@ -31,14 +31,6 @@ fn one_record(#[files("data/*.shp")] path: PathBuf) {
 }
 
 #[rstest]
-fn all_records(#[files("data/*.shp")] path: PathBuf) {
-    let mut parser = Parser::new(&path).unwrap();
-    let header = parser.parse_header().unwrap();
-    let goal = header.file_length.num_bytes();
-
-    while parser.num_bytes_read() < goal {
-        let _record = parser.parse_record().unwrap();
-    }
-
-    assert_eq!(parser.num_bytes_read(), goal);
+fn parse_file(#[files("data/*.shp")] path: PathBuf) {
+    let _parsed = Parser::parse(&path).unwrap();
 }
