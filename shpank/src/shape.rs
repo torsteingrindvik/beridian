@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use crate::parse::{Error::UnexpectedData, Parser, Result};
+use crate::parse::{Error::UnexpectedData, MinimumBoundingRectangle, Parser, Result};
 
 #[derive(Debug)]
 pub enum ShapeType {
@@ -82,8 +82,8 @@ impl Shape {
 
         let mbr = parser.consume_and_parse_mbr()?;
 
-        let num_parts = parser.consume_and_parse_integer()?;
-        let num_points = parser.consume_and_parse_integer()?;
+        let num_parts = parser.parse_integer()?;
+        let num_points = parser.parse_integer()?;
 
         dbg!(
             "Polygon: ",
@@ -97,14 +97,14 @@ impl Shape {
         let mut parts_array = Vec::with_capacity(4 * num_parts as usize);
 
         for _ in 0..num_parts {
-            let part_idx = parser.consume_and_parse_integer()?;
+            let part_idx = parser.parse_integer()?;
             dbg!(&part_idx);
             parts_array.push(part_idx);
         }
 
         let mut points_array = Vec::with_capacity(size_of::<Point>() * num_points as usize);
         for _ in 0..num_points {
-            let point = parser.consume_and_parse_point()?;
+            let point = parser.parse_point()?;
             dbg!(&point);
             points_array.push(point);
         }
@@ -120,10 +120,15 @@ impl Shape {
 }
 
 #[derive(Debug)]
-pub struct PolyLine;
+pub struct PolyLine {
+    pub mbr: MinimumBoundingRectangle,
+    pub parts: Vec<i32>,
+    pub points: Vec<Point>,
+}
 
 #[derive(Debug)]
 pub struct Polygon {
+    pub mbr: MinimumBoundingRectangle,
     pub parts: Vec<i32>,
     pub points: Vec<Point>,
 }
