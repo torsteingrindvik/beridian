@@ -32,5 +32,5 @@ fn one_record(#[files("data/*.shp")] path: PathBuf) {
 
 #[rstest]
 fn parse_file(#[files("data/*.shp")] path: PathBuf) {
-    let _parsed = Parser::parse(&path).unwrap();
+    let _parsed = Parser::parse_file(&path).unwrap();
 }

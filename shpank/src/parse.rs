@@ -40,22 +40,15 @@ impl Parser<BufReader<File>> {
         Ok(Self::with_reader(BufReader::new(f)))
     }
 
-    pub fn parse<P: AsRef<Path>>(shp_path: P) -> Result<ShpFile> {
-        let mut parser = Self::new(shp_path)?;
+    pub fn parse_file<P: AsRef<Path>>(shp_path: P) -> Result<ShpFile> {
+        let parser = Self::new(shp_path)?;
+        parser.impl_parse()
+    }
+}
 
-        let header = parser.parse_header()?;
-
-        let mut records = vec![];
-
-        let goal = header.file_length.num_bytes();
-
-        while parser.num_bytes_read() < goal {
-            records.push(parser.parse_record()?);
-        }
-
-        assert_eq!(parser.num_bytes_read(), goal);
-
-        Ok(ShpFile { header, records })
+impl<'b> Parser<&'b [u8]> {
+    pub fn parse_buffer(buf: &'b [u8]) -> Result<ShpFile> {
+        Self::with_reader(buf).impl_parse()
     }
 }
 
@@ -68,6 +61,22 @@ where
             bytes_read: 0,
             reader,
         }
+    }
+
+    fn impl_parse(mut self) -> Result<ShpFile> {
+        let header = self.parse_header()?;
+
+        let mut records = vec![];
+
+        let goal = header.file_length.num_bytes();
+
+        while self.num_bytes_read() < goal {
+            records.push(self.parse_record()?);
+        }
+
+        assert_eq!(self.num_bytes_read(), goal);
+
+        Ok(ShpFile { header, records })
     }
 
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
