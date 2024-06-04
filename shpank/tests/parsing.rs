@@ -34,3 +34,9 @@ fn one_record(#[files("data/*.shp")] path: PathBuf) {
 fn parse_file(#[files("data/*.shp")] path: PathBuf) {
     let _parsed = Parser::parse_file(&path).unwrap();
 }
+
+#[rstest]
+fn parse_file_in_mem(#[files("data/*.shp")] path: PathBuf) {
+    let buf = std::fs::read(path).unwrap();
+    let _parsed = Parser::parse_buffer(&buf).unwrap();
+}
