@@ -1,21 +1,38 @@
 use std::{
+    char, ffi,
     fs::File,
     io::{self, BufReader},
     mem::size_of,
     path::Path,
+    string,
 };
 
 use thiserror::Error;
 
-use crate::shape::{
-    self, Double, Integer, MinimumBoundingRectangle, Point, PolyLine, Polygon, Shape, ShapeType,
-    ShpFile, ShpHeader, ShpLength, ShpRecord, ShpRecordHeader,
+use crate::{
+    dbase::DbaseFile,
+    shape::{
+        self, Double, Integer, MinimumBoundingRectangle, Point, PolyLine, Polygon, Shape,
+        ShapeType, ShpFile, ShpHeader, ShpLength, ShpRecord, ShpRecordHeader,
+    },
 };
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("IO")]
+    #[error("IO: {0:?}")]
     IO(#[from] io::Error),
+
+    #[error("Utf8: {0:?}")]
+    Utf8(#[from] string::FromUtf8Error),
+
+    #[error("Utf8: {0:?}")]
+    Utf8Str(#[from] std::str::Utf8Error),
+
+    #[error("Char: {0:?}")]
+    Char(#[from] char::TryFromCharError),
+
+    #[error("Ffi: {0:?}")]
+    Nul(#[from] ffi::FromBytesUntilNulError),
 
     #[error("Unexpected data: {0}")]
     UnexpectedData(String),
@@ -35,20 +52,29 @@ impl<R> Parser<R> {
 }
 
 impl Parser<BufReader<File>> {
-    pub fn new<P: AsRef<Path>>(shp_path: P) -> Result<Self> {
-        let f = std::fs::File::open(shp_path.as_ref())?;
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let f = std::fs::File::open(path.as_ref())?;
         Ok(Self::with_reader(BufReader::new(f)))
     }
 
-    pub fn parse_file<P: AsRef<Path>>(shp_path: P) -> Result<ShpFile> {
+    pub fn parse_shp_file<P: AsRef<Path>>(shp_path: P) -> Result<ShpFile> {
         let parser = Self::new(shp_path)?;
-        parser.impl_parse()
+        parser.impl_parse_shp()
+    }
+
+    pub fn parse_dbf_file<P: AsRef<Path>>(dbf_path: P) -> Result<DbaseFile> {
+        let parser = Self::new(dbf_path)?;
+        parser.impl_parse_dbase_file()
     }
 }
 
 impl<'b> Parser<&'b [u8]> {
-    pub fn parse_buffer(buf: &'b [u8]) -> Result<ShpFile> {
-        Self::with_reader(buf).impl_parse()
+    pub fn parse_shp_buffer(buf: &'b [u8]) -> Result<ShpFile> {
+        Self::with_reader(buf).impl_parse_shp()
+    }
+
+    pub fn parse_dbf_buffer(buf: &'b [u8]) -> Result<DbaseFile> {
+        Self::with_reader(buf).impl_parse_dbase_file()
     }
 }
 
@@ -63,7 +89,7 @@ where
         }
     }
 
-    fn impl_parse(mut self) -> Result<ShpFile> {
+    fn impl_parse_shp(mut self) -> Result<ShpFile> {
         let header = self.parse_header()?;
 
         let mut records = vec![];
@@ -79,11 +105,25 @@ where
         Ok(ShpFile { header, records })
     }
 
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+    pub fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         self.reader.read_exact(buf)?;
         self.bytes_read += buf.len();
 
         Ok(())
+    }
+
+    fn consume_1(&mut self) -> Result<u8> {
+        let mut buf = [0; 1];
+        self.read_exact(&mut buf)?;
+
+        Ok(buf[0])
+    }
+
+    fn consume_2(&mut self) -> Result<[u8; 2]> {
+        let mut buf = [0; 2];
+        self.read_exact(&mut buf)?;
+
+        Ok(buf)
     }
 
     fn consume_4(&mut self) -> Result<[u8; 4]> {
@@ -129,11 +169,27 @@ where
         self.parse_i32_le()?.try_into()
     }
 
-    fn parse_i32_le(&mut self) -> Result<i32> {
+    pub fn parse_u8(&mut self) -> Result<u8> {
+        Ok(self.consume_1()?)
+    }
+
+    pub fn parse_ascii(&mut self) -> Result<char> {
+        Ok(self.consume_1()?.into())
+    }
+
+    pub fn parse_u16_le(&mut self) -> Result<u16> {
+        Ok(u16::from_le_bytes(self.consume_2()?))
+    }
+
+    pub fn parse_i32_le(&mut self) -> Result<i32> {
         Ok(i32::from_le_bytes(self.consume_4()?))
     }
 
-    fn parse_i32_be(&mut self) -> Result<i32> {
+    pub fn parse_u32_le(&mut self) -> Result<u32> {
+        Ok(u32::from_le_bytes(self.consume_4()?))
+    }
+
+    pub fn parse_i32_be(&mut self) -> Result<i32> {
         Ok(i32::from_be_bytes(self.consume_4()?))
     }
 

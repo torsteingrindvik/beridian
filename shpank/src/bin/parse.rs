@@ -24,12 +24,12 @@ impl FromStr for Mode {
 }
 
 #[derive(Debug, FromArgs)]
-/// Parse an input .shp file then exit.
+/// Parse an input .shp or .dbf file then exit.
 /// Can be used for speedtesting.
 struct Parse {
     /// path to input file
     #[argh(option)]
-    shp: PathBuf,
+    file: PathBuf,
 
     /// which mode to parse in: [file|string]
     #[argh(option)]
@@ -37,17 +37,42 @@ struct Parse {
 }
 
 fn main() {
-    let Parse { shp, mode } = argh::from_env();
+    let Parse { file, mode } = argh::from_env();
 
-    match mode {
-        Mode::File => {
-            let _f = Parser::parse_file(shp).unwrap();
-        }
-        Mode::Bytes => {
-            let bytes = std::fs::read(shp).unwrap();
-            let _f = Parser::parse_buffer(&bytes).unwrap();
-        }
+    enum Ext {
+        Shp,
+        Dbf,
     }
 
-    println!("OK");
+    let ext = file.extension().unwrap().to_string_lossy().to_string();
+    let ext = match ext.as_str() {
+        "shp" => Ext::Shp,
+        "dbf" => Ext::Dbf,
+        _ => panic!("expected a .shp or .dbf file"),
+    };
+
+    match ext {
+        Ext::Shp => {
+            let f = match mode {
+                Mode::File => Parser::parse_shp_file(file).unwrap(),
+                Mode::Bytes => {
+                    let bytes = std::fs::read(file).unwrap();
+                    Parser::parse_shp_buffer(&bytes).unwrap()
+                }
+            };
+
+            println!(".shp parse OK- {} records", f.records.len());
+        }
+        Ext::Dbf => {
+            let f = match mode {
+                Mode::File => Parser::parse_dbf_file(file).unwrap(),
+                Mode::Bytes => {
+                    let bytes = std::fs::read(file).unwrap();
+                    Parser::parse_dbf_buffer(&bytes).unwrap()
+                }
+            };
+
+            println!(".dbf parse OK- {} records", f.records.len());
+        }
+    }
 }
