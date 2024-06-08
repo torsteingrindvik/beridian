@@ -26,8 +26,11 @@ fn file_lengths(#[files("data/*.shp")] path: PathBuf) {
 #[rstest]
 fn one_record(#[files("data/*.shp")] path: PathBuf) {
     let mut parser = Parser::new(&path).unwrap();
-    let _header = parser.parse_header().unwrap();
-    let _record = parser.parse_record().unwrap();
+    let header = parser.parse_header().unwrap();
+    dbg!(&header);
+
+    let record = parser.parse_record().unwrap();
+    dbg!(&record);
 }
 
 #[rstest]

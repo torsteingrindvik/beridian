@@ -41,6 +41,17 @@ pub struct DbaseHeader {
 }
 
 impl DbaseHeader {
+    /// Compares the provided field name (in trimmed lowercase ASCII)
+    /// to the declared fields (in trimmed lowercase ASCII).
+    /// If a match is found returns the index.
+    pub fn index_of(&self, field_name: &str) -> Option<usize> {
+        self.fields.iter().position(|field| {
+            field.name.to_ascii_lowercase().trim() == field_name.to_ascii_lowercase().trim()
+        })
+    }
+}
+
+impl DbaseHeader {
     /// Total bytes in a .dbf file:
     /// - Header bytes
     /// - Record bytes
