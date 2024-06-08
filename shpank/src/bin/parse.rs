@@ -26,7 +26,7 @@ impl FromStr for Mode {
 #[derive(Debug, FromArgs)]
 /// Parse an input .shp or .dbf file then exit.
 /// Can be used for speedtesting.
-struct Parse {
+struct Args {
     /// path to input file
     #[argh(option)]
     file: PathBuf,
@@ -37,7 +37,7 @@ struct Parse {
 }
 
 fn main() {
-    let Parse { file, mode } = argh::from_env();
+    let Args { file, mode } = argh::from_env();
 
     enum Ext {
         Shp,

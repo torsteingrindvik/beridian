@@ -7,7 +7,7 @@ use std::{
 };
 
 fn parser(path: &Path) -> Parser<BufReader<File>> {
-    Parser::new(&path).unwrap()
+    Parser::new(path).unwrap()
 }
 
 #[rstest]
@@ -25,7 +25,7 @@ fn file_lengths(#[files("data/*.dbf")] path: PathBuf) {
 
 #[rstest]
 fn one_record(#[files("data/*.dbf")] path: PathBuf) {
-    let mut parser = Parser::new(&path).unwrap();
+    let mut parser = Parser::new(path).unwrap();
     let header = parser.parse_dbase_header().unwrap();
     dbg!(&header);
 
@@ -35,7 +35,7 @@ fn one_record(#[files("data/*.dbf")] path: PathBuf) {
 
 #[rstest]
 fn parse_file(#[files("data/*.dbf")] path: PathBuf) {
-    let _parsed = Parser::parse_dbf_file(&path).unwrap();
+    let _parsed = Parser::parse_dbf_file(path).unwrap();
 }
 
 #[rstest]

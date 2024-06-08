@@ -2,19 +2,19 @@ use std::{ffi::CStr, io};
 
 use crate::parse::{Error, Parser, Result};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DbaseFile {
     pub header: DbaseHeader,
     pub records: Vec<DbaseRecord>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DbaseRecord {
     pub entries: Vec<String>,
 }
 
 // https://en.wikipedia.org/wiki/.dbf#File_format_of_Level_5_DOS_dBASE
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DbaseHeader {
     pub flags: u8,
 
@@ -67,15 +67,15 @@ impl DbaseHeader {
 }
 
 // https://en.wikipedia.org/wiki/.dbf#Database_records
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum FieldType {
-    Character = 'C' as u8,
-    Date = 'D' as u8,
-    FloatingPoint = 'F' as u8,
-    Logical = 'L' as u8,
-    Memo = 'M' as u8,
-    Numeric = 'N' as u8,
+    Character = b'C',
+    Date = b'D',
+    FloatingPoint = b'F',
+    Logical = b'L',
+    Memo = b'M',
+    Numeric = b'N',
 }
 
 impl TryFrom<char> for FieldType {
@@ -101,7 +101,7 @@ impl TryFrom<char> for FieldType {
 }
 
 // https://en.wikipedia.org/wiki/.dbf#Field_descriptor_array
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FieldDescriptor {
     pub name: String,
     pub type_: FieldType,

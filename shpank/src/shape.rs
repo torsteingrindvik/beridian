@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use crate::parse::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MinimumBoundingRectangle {
     pub x: Range<f64>,
     pub y: Range<f64>,
@@ -11,7 +11,7 @@ pub struct MinimumBoundingRectangle {
 pub type Integer = i32;
 pub type Double = f64;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ShpLength(pub i32);
 
 impl ShpLength {
@@ -22,14 +22,14 @@ impl ShpLength {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ShpFile {
     pub header: ShpHeader,
     pub records: Vec<ShpRecord>,
 }
 
 // See https://en.wikipedia.org/wiki/Shapefile#Shapefile_headers
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ShpHeader {
     pub file_code: i32,
 
@@ -47,7 +47,7 @@ impl ShpHeader {
     pub const FILE_CODE: i32 = 0x0000270a;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ShpRecordHeader {
     /// Starting at 1
     pub record_number: i32,
@@ -57,12 +57,12 @@ pub struct ShpRecordHeader {
     pub content_length: ShpLength,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ShpRecord {
     pub shape: Shape,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ShapeType {
     Null = 0,
     Point = 1,
@@ -108,7 +108,7 @@ impl TryFrom<i32> for ShapeType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Shape {
     Null,
     Point(Point),
@@ -126,52 +126,52 @@ pub enum Shape {
     MultiPatch(MultiPatch),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Point {
     pub x: f64,
     pub y: f64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PolyLine {
     pub mbr: MinimumBoundingRectangle,
     pub parts: Vec<i32>,
     pub points: Vec<Point>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Polygon {
     pub mbr: MinimumBoundingRectangle,
     pub parts: Vec<i32>,
     pub points: Vec<Point>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MultiPoint;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PointZ;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PolylineZ;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PolygonZ;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MultiPointZ;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PointM;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PolylineM;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PolygonM;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MultiPointM;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MultiPatch;

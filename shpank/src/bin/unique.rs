@@ -5,7 +5,7 @@ use std::{collections::BTreeSet, path::PathBuf};
 #[derive(Debug, FromArgs)]
 /// Parse an input .dbf file then exit.
 /// Can be used for speedtesting.
-struct Parse {
+struct Args {
     /// field to return unique entries of
     #[argh(option, default = "String::from(\"fclass\")")]
     field: String,
@@ -16,7 +16,7 @@ struct Parse {
 }
 
 fn main() {
-    let Parse { file, field } = argh::from_env();
+    let Args { file, field } = argh::from_env();
 
     let dbf = Parser::parse_dbf_file(&file).unwrap();
     let idx = dbf

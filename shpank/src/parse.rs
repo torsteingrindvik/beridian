@@ -170,7 +170,7 @@ where
     }
 
     pub fn parse_u8(&mut self) -> Result<u8> {
-        Ok(self.consume_1()?)
+        self.consume_1()
     }
 
     pub fn parse_ascii(&mut self) -> Result<char> {
