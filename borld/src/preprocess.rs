@@ -4,14 +4,14 @@ use shpank::shape::Shape;
 
 use crate::ecs_geo::*;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Object {
     pub name: Option<GeoName>,
     pub feature: GeoFeature,
     pub variant: Variant,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Variant {
     Point(GeoPoint),
     Line(GeoLines),

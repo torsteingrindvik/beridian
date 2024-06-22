@@ -118,7 +118,7 @@ impl<'a> Iterator for RecordsIterator<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Fclass {
     Airport,
     Allotments,
