@@ -4,7 +4,7 @@ use argh::FromArgs;
 use shpank::spatial::Spatial;
 
 #[derive(Debug, FromArgs)]
-/// Parse an .shp ane .dbf file then convert to objects.
+/// Parse a .shp- and .dbf file pair then convert to objects.
 struct Args {
     /// path to input Shapefile
     #[argh(positional)]

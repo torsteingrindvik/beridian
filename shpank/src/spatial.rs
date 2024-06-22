@@ -1,5 +1,7 @@
 use std::{path::Path, str::FromStr};
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     dbase::{DbaseFile, DbaseRecord},
     parse::{self, Error, Result},
@@ -116,7 +118,7 @@ impl<'a> Iterator for RecordsIterator<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Fclass {
     Airport,
     Allotments,
@@ -164,6 +166,7 @@ pub enum Fclass {
     ChristianOrthodox,
     ChristianProtestant,
     Cinema,
+    City,
     Cliff,
     Clinic,
     Clothes,
@@ -432,6 +435,7 @@ impl FromStr for Fclass {
             "christian_orthodox" => Self::ChristianOrthodox,
             "christian_protestant" => Self::ChristianProtestant,
             "cinema" => Self::Cinema,
+            "city" => Self::City,
             "cliff" => Self::Cliff,
             "clinic" => Self::Clinic,
             "clothes" => Self::Clothes,
